@@ -112,8 +112,8 @@ def test_missing_files():
         CondaEnv.from_prefix(py36_missing_files_path)
 
     msg = str(exc.value)
-    assert "{}toolz{}__init__.py".format(os.sep, os.sep) in msg, msg
-    assert "{}toolz{}_signatures.py".format(os.sep, os.sep) in msg, msg
+    assert f"{os.sep}toolz{os.sep}__init__.py" in msg, msg
+    assert f"{os.sep}toolz{os.sep}_signatures.py" in msg, msg
 
 
 def test_missing_files_ignored():
@@ -144,9 +144,9 @@ def test_env_properties(py36_env):
 def test_load_environment_ignores(py36_env):
     lk = {normpath(f.target): f for f in py36_env}
     for fname in ('conda', 'conda.bat'):
-        assert '{}/{}'.format(BIN_DIR_L, fname) not in lk
+        assert f'{BIN_DIR_L}/{fname}' not in lk
     for fname in ('activate', 'activate.bat', 'deactivate', 'deactivate.bat'):
-        fpath = '{}/{}'.format(BIN_DIR_L, fname)
+        fpath = f'{BIN_DIR_L}/{fname}'
         assert fpath not in lk or not lk[fpath].source.startswith(py36_path)
 
 
@@ -161,26 +161,26 @@ def test_loaded_file_properties(py36_env):
 
     # Pip installed entrypoint
     exe_suffix = '.exe' if on_win else ''
-    fil = lk['{}/pytest{}'.format(BIN_DIR_L, exe_suffix)]
+    fil = lk[f'{BIN_DIR_L}/pytest{exe_suffix}']
     assert not fil.is_conda
     assert fil.file_mode == 'unknown'
     assert fil.prefix_placeholder is None
 
     # Conda installed noarch entrypoint
-    fil = lk['{}/conda-pack-test-lib1'.format(BIN_DIR_L)]
+    fil = lk[f'{BIN_DIR_L}/conda-pack-test-lib1']
     assert fil.is_conda
     assert fil.file_mode == 'text'
     assert fil.prefix_placeholder != py36_env.prefix
 
     # Conda installed entrypoint
     suffix = '-script.py' if on_win else ''
-    fil = lk['{}/conda-pack-test-lib2{}'.format(BIN_DIR_L, suffix)]
+    fil = lk[f'{BIN_DIR_L}/conda-pack-test-lib2{suffix}']
     assert fil.is_conda
     assert fil.file_mode == 'text'
     assert fil.prefix_placeholder != py36_env.prefix
 
     # Conda installed file
-    fil = lk['{}/conda_pack_test_lib1/cli.py'.format(SP_36_L)]
+    fil = lk[f'{SP_36_L}/conda_pack_test_lib1/cli.py']
     assert fil.is_conda
     assert fil.file_mode is None
     assert fil.prefix_placeholder is None
@@ -468,8 +468,8 @@ def test_pack(tmpdir, py36_env):
                 .include(include))
 
     # Files line up with filtering, with extra conda-unpack command
-    sol = set(os.path.normcase(f.target) for f in filtered.files)
-    res = set(os.path.normcase(p) for p in paths)
+    sol = {os.path.normcase(f.target) for f in filtered.files}
+    res = {os.path.normcase(p) for p in paths}
     diff = res.difference(sol)
 
     if on_win:
@@ -477,7 +477,7 @@ def test_pack(tmpdir, py36_env):
                   'activate.bat', 'deactivate.bat')
     else:
         fnames = ('conda-unpack', 'activate', 'deactivate')
-    assert diff == set(os.path.join(BIN_DIR_L, f) for f in fnames)
+    assert diff == {os.path.join(BIN_DIR_L, f) for f in fnames}
 
 
 def _test_dest_prefix(src_prefix, dest_prefix, arcroot, out_path, format):
@@ -530,7 +530,7 @@ def test_parcel(tmpdir, py36_env):
         pytest.skip("Not parcel tests on Windows")
     arcroot = 'py36-1234.56'
 
-    out_path = os.path.join(str(tmpdir), arcroot + '-el7.parcel')
+    out_path = os.path.join(str(tmpdir), f'{arcroot}-el7.parcel')
 
     pdir = os.getcwd()
     try:
@@ -545,10 +545,10 @@ def test_parcel(tmpdir, py36_env):
     # Verify that only the parcel files were added
     with tarfile.open(out_path, 'r:gz') as fil:
         paths = fil.getnames()
-    sol = set(os.path.join(arcroot, f.target) for f in py36_env.files)
+    sol = {os.path.join(arcroot, f.target) for f in py36_env.files}
     diff = set(paths).difference(sol)
     fnames = ('conda_env.sh', 'parcel.json')
-    assert diff == set(os.path.join(arcroot, 'meta', f) for f in fnames)
+    assert diff == {os.path.join(arcroot, 'meta', f) for f in fnames}
 
     # Verify correct metadata in parcel.json
     with tarfile.open(out_path) as fil:

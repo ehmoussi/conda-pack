@@ -262,14 +262,16 @@ class CondaEnv(object):
     def _parcel_output(self, parcel_root, parcel_name, parcel_version, parcel_distro):
         parcel_root = parcel_root or '/opt/cloudera/parcels'
         parcel_name = parcel_name or self.name
-        parcel_version = parcel_version or datetime.today().strftime(format='%Y.%m.%d')
+        parcel_version = parcel_version or datetime.now().strftime(format='%Y.%m.%d')
         parcel_distro = parcel_distro or 'el7'
         if '-' in parcel_name:
-            raise CondaPackException("Parcel names may not have dashes: %s" % parcel_name)
+            raise CondaPackException(f"Parcel names may not have dashes: {parcel_name}")
         if '-' in parcel_distro:
-            raise CondaPackException("Parcel distributions may not have dashes: %s" % parcel_distro)
-        arcroot = parcel_name + '-' + parcel_version
-        triple = arcroot + '-' + parcel_distro
+            raise CondaPackException(
+                f"Parcel distributions may not have dashes: {parcel_distro}"
+            )
+        arcroot = f'{parcel_name}-{parcel_version}'
+        triple = f'{arcroot}-{parcel_distro}'
         dest_prefix = os.path.join(parcel_root, arcroot)
         return dest_prefix, arcroot, triple
 
@@ -355,7 +357,7 @@ class CondaEnv(object):
             dest_prefix, arcroot, parcel = self._parcel_output(parcel_root, parcel_name,
                                                                parcel_version, parcel_distro)
             if output is None:
-                output = parcel + '.parcel'
+                output = f'{parcel}.parcel'
         else:
             parcel = None
             # Ensure the prefix is a relative path
@@ -572,7 +574,7 @@ def find_site_packages(prefix):
     python_version = pythons[0]['version']
     major_minor = python_version[:3]  # e.g. '3.5.1'[:3]
 
-    return 'lib/python%s/site-packages' % major_minor
+    return f'lib/python{major_minor}/site-packages'
 
 
 def check_no_editable_packages(prefix, site_packages):
@@ -593,19 +595,21 @@ def check_no_editable_packages(prefix, site_packages):
                 if not location.startswith(prefix):
                     editable_packages.add(line)
     if editable_packages:
-        msg = ("Cannot pack an environment with editable packages\n"
-               "installed (e.g. from `python setup.py develop` or\n "
-               "`pip install -e`). Editable packages found:\n\n"
-               "%s") % '\n'.join('- %s' % p for p in sorted(editable_packages))
+        msg = (
+            "Cannot pack an environment with editable packages\n"
+            "installed (e.g. from `python setup.py develop` or\n "
+            "`pip install -e`). Editable packages found:\n\n"
+            "%s" % '\n'.join(f'- {p}' for p in sorted(editable_packages))
+        )
         raise CondaPackException(msg)
 
 
 def name_to_prefix(name=None):
     try:
         conda_exe = os.environ.get('CONDA_EXE', 'conda')
-        info = (subprocess.check_output("{} info --json".format(conda_exe),
-                                        shell=True, stderr=subprocess.PIPE)
-                          .decode(default_encoding))
+        info = subprocess.check_output(
+            f"{conda_exe} info --json", shell=True, stderr=subprocess.PIPE
+        ).decode(default_encoding)
     except subprocess.CalledProcessError as exc:
         kind = ('current environment' if name is None
                 else 'environment: %r' % name)
@@ -689,16 +693,16 @@ def load_files(prefix):
 
 def managed_file(is_noarch, site_packages, pkg, _path, prefix_placeholder=None,
                  file_mode=None, **ignored):
-    if is_noarch:
-        if _path.startswith('site-packages/'):
-            target = site_packages + _path[13:]
-        elif _path.startswith('python-scripts/'):
-            target = BIN_DIR + _path[14:]
-        else:
-            target = _path
+    if is_noarch and _path.startswith('site-packages/'):
+        target = site_packages + _path[13:]
+    elif (
+        is_noarch
+        and not _path.startswith('site-packages/')
+        and _path.startswith('python-scripts/')
+    ):
+        target = BIN_DIR + _path[14:]
     else:
         target = _path
-
     return File(os.path.join(pkg, _path),
                 target,
                 is_conda=True,
@@ -827,9 +831,7 @@ def load_environment(prefix, on_missing_cache='warn', ignore_editable_packages=F
                                                  all_files)
 
             targets = {os.path.normcase(f.target) for f in new_files}
-            new_missing = targets.difference(all_files)
-
-            if new_missing:
+            if new_missing := targets.difference(all_files):
                 # Collect packages missing files as we progress to provide a
                 # complete error message on failure.
                 missing_files[(info['name'], info['version'])] = new_missing
@@ -859,7 +861,7 @@ def load_environment(prefix, on_missing_cache='warn', ignore_editable_packages=F
             value = sorted(value)
             if len(value) > 4:
                 value = value[:3] + ['+ %d others' % (len(value) - 3)]
-            packages.extend('    ' + p for p in value)
+            packages.extend(f'    {p}' for p in value)
         packages = '\n'.join(packages)
         raise CondaPackException(_missing_files_error.format(packages))
 
@@ -873,12 +875,17 @@ def load_environment(prefix, on_missing_cache='warn', ignore_editable_packages=F
         fnames = fnames + ('conda.bat', 'activate.bat', 'deactivate.bat')
     unmanaged -= {os.path.join(BIN_DIR, f) for f in fnames}
 
-    files.extend(File(os.path.join(prefix, p),
-                      p,
-                      is_conda=False,
-                      prefix_placeholder=None,
-                      file_mode='unknown')
-                 for p in unmanaged if not find_py_source(p) in managed)
+    files.extend(
+        File(
+            os.path.join(prefix, p),
+            p,
+            is_conda=False,
+            prefix_placeholder=None,
+            file_mode='unknown',
+        )
+        for p in unmanaged
+        if find_py_source(p) not in managed
+    )
 
     if uncached and on_missing_cache in ('warn', 'raise'):
         packages = '\n'.join('- %s=%r   %s' % i for i in uncached)
@@ -912,8 +919,7 @@ def rewrite_shebang(data, target, prefix):
         if executable.startswith(prefix_b):
             # shebang points inside environment, rewrite
             executable_name = executable.decode('utf-8').split('/')[-1]
-            new_shebang = '#!/usr/bin/env %s%s' % (executable_name,
-                                                   options.decode('utf-8'))
+            new_shebang = f"#!/usr/bin/env {executable_name}{options.decode('utf-8')}"
             data = data.replace(shebang, new_shebang.encode('utf-8'))
 
             return data, True
@@ -1152,7 +1158,7 @@ class Packer(object):
             python_pattern = re.compile(BIN_DIR + r'\\python\d.\d')
         else:
             shebang = '#!/usr/bin/env python'
-            python_pattern = re.compile(BIN_DIR + '/python')
+            python_pattern = re.compile(f'{BIN_DIR}/python')
 
         # We skip prefix rewriting in python executables (if needed)
         # to avoid editing a running file.

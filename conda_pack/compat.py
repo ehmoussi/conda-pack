@@ -17,7 +17,7 @@ if PY2:
     def source_from_cache(path):
         if path.endswith('.pyc') or path.endswith('.pyo'):
             return path[:-1]
-        raise ValueError("Path %s is not a python bytecode file" % path)
+        raise ValueError(f"Path {path} is not a python bytecode file")
 else:
     import importlib
     from importlib.util import source_from_cache
@@ -37,8 +37,7 @@ def find_py_source(path, ignore=True):
     If ignore is True, errors are swallowed and None is returned"""
     if not ignore:
         return source_from_cache(path)
-    else:
-        try:
-            return source_from_cache(path)
-        except (NotImplementedError, ValueError):
-            return None
+    try:
+        return source_from_cache(path)
+    except (NotImplementedError, ValueError):
+        return None
