@@ -153,7 +153,7 @@ def test_format(tmpdir, format, zip_symlinks, root_and_paths):
 
     root, paths = root_and_paths
 
-    packed_env_path = join(str(tmpdir), 'test.' + format)
+    packed_env_path = join(str(tmpdir), f'test.{format}')
     spill_dir = join(str(tmpdir), 'test')
     os.mkdir(spill_dir)
 
@@ -184,10 +184,9 @@ def test_format(tmpdir, format, zip_symlinks, root_and_paths):
             # unsquashfs creates its own directories
             os.rmdir(spill_dir)
             cmd = ["unsquashfs", "-dest", spill_dir, packed_env_path]
-            subprocess.check_output(cmd)
         else:
             cmd = ["squashfuse", packed_env_path, spill_dir]
-            subprocess.check_output(cmd)
+        subprocess.check_output(cmd)
     else:
         with tarfile.open(packed_env_path) as out:
             out.extractall(spill_dir)
@@ -224,7 +223,7 @@ def test_format_parallel(tmpdir, format, root_and_paths):
 
     root, paths = root_and_paths
 
-    out_path = join(str(tmpdir), 'test.' + format)
+    out_path = join(str(tmpdir), f'test.{format}')
     out_dir = join(str(tmpdir), 'test')
     os.mkdir(out_dir)
 

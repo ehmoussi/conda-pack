@@ -149,7 +149,7 @@ def main(args=None, pack=pack):
 
     # Manually handle version printing to output to stdout in python < 3.4
     if args.version:
-        print('conda-pack %s' % __version__)
+        print(f'conda-pack {__version__}')
         sys.exit(0)
 
     try:
@@ -174,7 +174,7 @@ def main(args=None, pack=pack):
                  ignore_editable_packages=args.ignore_editable_packages,
                  ignore_missing_files=args.ignore_missing_files)
     except CondaPackException as e:
-        fail("CondaPackError: %s" % e)
+        fail(f"CondaPackError: {e}")
     except KeyboardInterrupt:
         fail("Interrupted")
     except Exception:

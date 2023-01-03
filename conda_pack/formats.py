@@ -128,10 +128,8 @@ class ParallelFileWriter(object):
                         self.fileobj.write(buf)
 
     def _compress(self, in_bufs):
-        out_bufs = []
         compressor = self._new_compressor()
-        for data in in_bufs:
-            out_bufs.append(compressor.compress(data))
+        out_bufs = [compressor.compress(data) for data in in_bufs]
         out_bufs.append(self._flush_compressor(compressor))
         return out_bufs
 
@@ -332,30 +330,29 @@ class ZipArchive(ArchiveBase):
                 if os.path.isdir(source):
                     info.external_attr |= 0x10  # MS-DOS directory flag
                 self.archive.writestr(info, os.readlink(source))
+            elif os.path.isdir(source):
+                for root, dirs, files in os.walk(source, followlinks=True):
+                    root2 = os.path.join(target, os.path.relpath(root, source))
+                    for fil in files:
+                        self.archive.write(os.path.join(root, fil),
+                                           os.path.join(root2, fil))
+                    if not dirs and not files:
+                        # root is an empty directory, write it now
+                        self.archive.write(root, root2)
             else:
-                if os.path.isdir(source):
-                    for root, dirs, files in os.walk(source, followlinks=True):
-                        root2 = os.path.join(target, os.path.relpath(root, source))
-                        for fil in files:
-                            self.archive.write(os.path.join(root, fil),
-                                               os.path.join(root2, fil))
-                        if not dirs and not files:
-                            # root is an empty directory, write it now
-                            self.archive.write(root, root2)
-                else:
-                    try:
-                        self.archive.write(source, target)
-                    except OSError as e:
-                        if e.errno == errno.ENOENT:
-                            if source[-len(target):] == target:
-                                # For managed packages, this will give us the package name
-                                # followed by the relative path within the environment, a
-                                # more readable result.
-                                source = os.path.basename(source[:-len(target)-1])
-                                source = '{}: {}'.format(source, target)
-                            msg = _dangling_link_error.format(source)
-                            raise CondaPackException(msg)
-                        raise
+                try:
+                    self.archive.write(source, target)
+                except OSError as e:
+                    if e.errno == errno.ENOENT:
+                        if source[-len(target):] == target:
+                            # For managed packages, this will give us the package name
+                            # followed by the relative path within the environment, a
+                            # more readable result.
+                            source = os.path.basename(source[:-len(target)-1])
+                            source = f'{source}: {target}'
+                        msg = _dangling_link_error.format(source)
+                        raise CondaPackException(msg)
+                    raise
         else:
             self.archive.write(source, target)
 
@@ -372,7 +369,7 @@ else:  # pragma: no cover
         st = os.stat(filename)
         isdir = stat.S_ISDIR(st.st_mode)
         mtime = time.localtime(st.st_mtime)
-        date_time = mtime[0:6]
+        date_time = mtime[:6]
         # Create ZipInfo instance to store file information
         if arcname is None:
             arcname = filename
@@ -437,17 +434,16 @@ class SquashFSArchive(ArchiveBase):
             cmd += ["-comp", comp_algo_str]
         else:
             comp_level = int(self.compress_level / 8 * 20)
-            comp_algo_str = "zstd (level {})".format(comp_level)
+            comp_algo_str = f"zstd (level {comp_level})"
             # 256KB block size instead of the default 128KB for slightly smaller archive sizes
             cmd += ["-comp", "zstd", "-Xcompression-level", str(comp_level), "-b", str(256*1024)]
 
         if self.verbose:
-            s = "Running mksquashfs with {} compression (processors: {}).".format(
-                comp_algo_str, self.n_threads)
+            s = f"Running mksquashfs with {comp_algo_str} compression (processors: {self.n_threads})."
             if self.compress_level != 9:
                 s += "\nWill require kernel>=4.14 or squashfuse>=0.1.101 (compiled with zstd) " \
-                     "for mounting.\nTo support older systems, compress with " \
-                     "`xz` (--compress-level 9) instead."
+                         "for mounting.\nTo support older systems, compress with " \
+                         "`xz` (--compress-level 9) instead."
             print(s)
         else:
             cmd.append("-no-progress")
